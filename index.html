@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novinax - Production Incident Live Triage & War Room Dashboard</title>
+  <meta name="description"
+    content="Unified Production Incident Dashboard for live logs, error traces, deployment tracking, recent changes, historical incident matching, and collaborative manual editing.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js for real-time telemetry -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+  <!-- Top Navbar -->
+  <header class="top-navbar">
+    <div class="nav-left">
+      <a href="#" class="brand">
+        <div class="brand-icon">
+          <i data-lucide="flame" style="width:18px;height:18px;"></i>
+        </div>
+        <span>Novinax <span style="color:var(--text-muted);font-weight:400;font-size:12px;">
+      </a>
+
+      <!-- Incident Switcher -->
+      <div class="incident-select-wrap">
+        <i data-lucide="layers" style="width:14px;height:14px;color:var(--sky-accent);"></i>
+        <select id="incident-select" class="incident-dropdown" title="Select active incident">
+          <!-- Populated by JS -->
+        </select>
+        <button id="btn-new-incident" class="btn btn-secondary btn-sm" title="Create New Incident">
+          <i data-lucide="plus" style="width:12px;height:12px;"></i> New
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Status & Live Ticker -->
+    <div class="nav-center">
+      <div id="live-status-pill" class="live-indicator-badge" title="Live Telemetry Streaming Status">
+        <span class="pulse-dot"></span>
+        <span id="live-status-text">LIVE STREAMING</span>
+      </div>
+
+      <div class="timer-box" title="Incident Active Elapsed Duration">
+        <i data-lucide="clock" style="width:14px;height:14px;"></i>
+        <span id="incident-timer">00:34:12</span>
+      </div>
+
+      <button id="btn-toggle-stream" class="btn btn-secondary btn-sm" title="Pause / Resume Live Simulation">
+        <i id="stream-toggle-icon" data-lucide="pause" style="width:12px;height:12px;"></i>
+        <span id="stream-toggle-label">Pause</span>
+      </button>
+
+      <button id="btn-trigger-spike" class="btn btn-secondary btn-sm" title="Simulate a sudden traffic error surge">
+        <i data-lucide="zap" style="width:12px;height:12px;color:#f59e0b;"></i> Simulate Spike
+      </button>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="nav-right">
+      <button id="btn-edit-incident" class="btn btn-secondary btn-sm">
+        <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Edit Incident
+      </button>
+
+      <button id="btn-instant-rollback" class="btn btn-danger btn-sm">
+        <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> 1-Click Rollback
+      </button>
+
+      <button id="btn-export-postmortem" class="btn btn-primary btn-sm">
+        <i data-lucide="file-text" style="width:14px;height:14px;"></i> Export Report
+      </button>
+    </div>
+  </header>
+
+  <!-- Incident Summary Banner & Top KPI Strip -->
+  <section class="incident-header-banner glass-panel" id="incident-banner"
+    style="margin:16px 24px;padding:18px 20px;border-left:5px solid var(--p1-red);">
+
+    <!-- Top Row: Severity, Status, ID, Title, Quick Edit & Commander -->
+    <div class="banner-top-row">
+      <div class="incident-title-box">
+        <span id="badge-severity" class="badge badge-p1" style="font-size:12px;padding:3px 10px;">P1 CRITICAL</span>
+        <span id="badge-status" class="badge badge-status">INVESTIGATING</span>
+        <span id="incident-id-display" class="incident-id-tag">INC-4821</span>
+        <h1 id="incident-title-display" class="incident-heading">
+          Loading Incident Details...
+        </h1>
+        <i data-lucide="pencil" class="editable-field-hint" id="quick-edit-title-btn" style="width:15px;height:15px;"
+          title="Click to edit title"></i>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:12px;color:var(--text-muted);">Commander:</span>
+        <span id="incident-commander"
+          style="font-size:12.5px;font-weight:700;color:#0284c7;background:#e0f2fe;padding:4px 10px;border-radius:var(--radius-sm);border:1px solid #bae6fd;">
+          Nivetha (Staff SRE)
+        </span>
+      </div>
+    </div>
+
+    <!-- Middle Row: Executive Summary Box with Breathing Room -->
+    <div class="incident-summary-box">
+      <i data-lucide="info" style="width:16px;height:16px;color:#0284c7;flex-shrink:0;"></i>
+      <span id="incident-summary-text"
+        style="color:var(--text-secondary);font-size:13px;flex:1;line-height:1.5;"></span>
+      <button id="btn-edit-summary" class="btn btn-secondary btn-sm" style="padding:3px 8px;font-size:11px;">
+        <i data-lucide="edit-2" style="width:11px;height:11px;"></i> Edit Summary
+      </button>
+    </div>
+
+    <!-- Bottom Row: 5 Distinct KPI Metric Cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;">
+      <!-- KPI 1: Primary Service -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:var(--radius-md);padding:10px 14px;">
+        <div
+          style="font-size:11px;color:var(--text-muted);text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="server" style="width:13px;height:13px;color:#9333ea;"></i> Impacted Service
+        </div>
+        <div
+          style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:2px;font-family:var(--font-mono);"
+          id="metric-service">payment-gateway</div>
+        <div style="font-size:11px;color:var(--text-muted);" id="metric-env">production-us-east-1</div>
+      </div>
+
+      <!-- KPI 2: Error Rate -->
+      <div style="background:#fff1f2;border:1px solid #fecdd3;border-radius:var(--radius-md);padding:10px 14px;">
+        <div
+          style="font-size:11px;color:#be123c;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="activity" style="width:13px;height:13px;color:#e11d48;"></i> 5xx Error Rate
+        </div>
+        <div style="font-size:16px;font-weight:800;color:#9f1239;margin-top:2px;font-family:var(--font-mono);"
+          id="chart-error-rate-label">18.42%</div>
+        <div style="font-size:11px;color:#e11d48;font-weight:600;">Threshold: 1.0% (CRITICAL)</div>
+      </div>
+
+      <!-- KPI 3: Latency & Restarts -->
+      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:var(--radius-md);padding:10px 14px;">
+        <div
+          style="font-size:11px;color:#92400e;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="zap" style="width:13px;height:13px;color:#d97706;"></i> P99 Latency / Restarts
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#92400e;margin-top:2px;font-family:var(--font-mono);"
+          id="p99-latency-display">405 ms (+340ms)</div>
+        <div style="font-size:11px;color:#b45309;font-weight:600;" id="k8s-restarts-display">23 Pod Restarts</div>
+      </div>
+
+      <!-- KPI 4: Impacted Users & Burn -->
+      <div style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:var(--radius-md);padding:10px 14px;">
+        <div
+          style="font-size:11px;color:#0369a1;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="users" style="width:13px;height:13px;color:#0284c7;"></i> Users & Burn Rate
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#0369a1;margin-top:2px;font-family:var(--font-mono);"
+          id="metric-users">14,200 users</div>
+        <div style="font-size:11px;color:#be123c;font-weight:700;" id="metric-financial">$38,400 / hr</div>
+      </div>
+
+      <!-- KPI 5: Active Version -->
+      <div style="background:#f3e8ff;border:1px solid #e9d5ff;border-radius:var(--radius-md);padding:10px 14px;">
+        <div
+          style="font-size:11px;color:#6b21a8;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px;">
+          <i data-lucide="git-branch" style="width:13px;height:13px;color:#9333ea;"></i> Active Version
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#6b21a8;margin-top:2px;font-family:var(--font-mono);"
+          id="metric-version">v2.14.8-hotfix-3</div>
+        <div style="font-size:11px;color:#15803d;font-weight:600;">Rollback Target: v2.14.7-prod</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Telemetry Mini Chart Bar -->
+  <div style="padding:0 24px 16px 24px;">
+    <div class="glass-panel"
+      style="padding:10px 18px;display:flex;align-items:center;gap:20px;justify-content:space-between;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="domain-tag errors">Live Graph</span>
+        <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Real-Time 5xx Error Spike
+          Telemetry</span>
+      </div>
+      <div style="flex:1;max-width:700px;height:40px;">
+        <canvas id="liveMiniChart"></canvas>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:11px;color:var(--text-muted);">Sampling:</span>
+        <span style="font-size:11px;color:#34d399;font-weight:700;">1s stream</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation View Tabs -->
+  <nav class="view-tabs-container">
+    <div class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-warroom">
+        <i data-lucide="layout-grid" style="width:15px;height:15px;"></i>
+        <span>Unified 5-Domain War Room</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-errors">
+        <i data-lucide="alert-octagon" style="width:15px;height:15px;color:#ef4444;"></i>
+        <span>1. Errors & Traces</span>
+        <span class="tab-count" id="tab-count-errors">3</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-logs">
+        <i data-lucide="terminal" style="width:15px;height:15px;color:#38bdf8;"></i>
+        <span>2. Live Logs Stream</span>
+        <span class="tab-count" id="tab-count-logs">6</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-deployment">
+        <i data-lucide="rocket" style="width:15px;height:15px;color:#a855f7;"></i>
+        <span>3. Deployment & Rollback</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-changes">
+        <i data-lucide="git-pull-request" style="width:15px;height:15px;color:#f59e0b;"></i>
+        <span>4. Recent Changes & Diff</span>
+        <span class="tab-count" id="tab-count-changes">3</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-history">
+        <i data-lucide="archive" style="width:15px;height:15px;color:#10b981;"></i>
+        <span>5. Past Incidents & Playbook</span>
+        <span class="tab-count" id="tab-count-history">2</span>
+      </button>
+      <button class="tab-btn" data-tab="tab-notes">
+        <i data-lucide="clipboard-list" style="width:15px;height:15px;"></i>
+        <span>Scratchpad & Timeline</span>
+      </button>
+    </div>
+
+    <!-- Quick info indicator -->
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:12px;color:var(--text-muted);">Mode:</span>
+      <span style="color:#38bdf8;font-weight:700;font-size:12px;">Live War Room Active</span>
+    </div>
+  </nav>
+
+  <!-- Main View Container -->
+  <main class="dashboard-content">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: UNIFIED WAR ROOM (5-Domain Structured View) -->
+    <!-- ========================================================================= -->
+    <section id="tab-warroom" class="view-section active-view">
+      <div class="unified-warroom-grid">
+
+        <!-- DOMAIN 1: Errors & Stack Traces (Red) -->
+        <div class="glass-panel domain-panel-errors">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="domain-tag errors"><i data-lucide="alert-octagon" style="width:12px;height:12px;"></i> Domain
+                1</span>
+              <span style="font-weight:700;font-size:14px;color:var(--text-primary);">Error Signatures & Call
+                Stacks</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-secondary btn-sm" onclick="app.openNewErrorModal()">
+                <i data-lucide="plus" style="width:12px;height:12px;"></i> Add Error
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="warroom-errors-list" class="error-list">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- DOMAIN 2: Live Log Stream (Cyan) -->
+        <div class="glass-panel domain-panel-logs">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="domain-tag logs"><i data-lucide="terminal" style="width:12px;height:12px;"></i> Domain
+                2</span>
+              <span style="font-weight:700;font-size:14px;color:var(--text-primary);">Live Logs Stream Explorer</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-secondary btn-sm" onclick="app.openAddLogModal()">
+                <i data-lucide="plus" style="width:12px;height:12px;"></i> Inject Log
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="app.clearLogs()">
+                <i data-lucide="trash-2" style="width:12px;height:12px;"></i> Clear
+              </button>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div class="logs-terminal-container"
+              style="height:440px;border:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);">
+              <div class="logs-toolbar">
+                <input type="text" id="warroom-log-search" class="logs-search-input"
+                  placeholder="Search logs (e.g. pool, 502, redis)...">
+                <select id="warroom-log-level-filter" class="form-control"
+                  style="width:110px;padding:4px 8px;font-size:11px;">
+                  <option value="ALL">All Levels</option>
+                  <option value="FATAL">FATAL</option>
+                  <option value="ERROR">ERROR</option>
+                  <option value="WARN">WARN</option>
+                  <option value="INFO">INFO</option>
+                </select>
+              </div>
+              <div id="warroom-logs-stream" class="logs-stream-body">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DOMAIN 3: Deployment Details & 1-Click Rollback (Purple) -->
+        <div class="glass-panel domain-panel-deploy">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="domain-tag deploy"><i data-lucide="rocket" style="width:12px;height:12px;"></i> Domain
+                3</span>
+              <span style="font-weight:700;font-size:14px;color:var(--text-primary);">Deployment State & Fast
+                Rollback</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-danger btn-sm" onclick="app.openRollbackModal()">
+                <i data-lucide="rotate-ccw" style="width:12px;height:12px;"></i> Rollback
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="warroom-deployment-box">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- DOMAIN 4: Recent Changes & Suspect Correlation (Amber) -->
+        <div class="glass-panel domain-panel-changes">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="domain-tag changes"><i data-lucide="git-pull-request" style="width:12px;height:12px;"></i>
+                Domain 4</span>
+              <span style="font-weight:700;font-size:14px;color:var(--text-primary);">Recent Changes & Root Cause
+                Correlation</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-secondary btn-sm" onclick="app.openNewChangeModal()">
+                <i data-lucide="plus" style="width:12px;height:12px;"></i> Add Change
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="warroom-changes-list">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- DOMAIN 5: Historical Incidents & Playbook (Green) -->
+        <div class="glass-panel domain-panel-history">
+          <div class="card-header">
+            <div class="card-title">
+              <span class="domain-tag history"><i data-lucide="book-open" style="width:12px;height:12px;"></i> Domain
+                5</span>
+              <span style="font-weight:700;font-size:14px;color:var(--text-primary);">Historical Match & Live
+                Playbook</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-secondary btn-sm" onclick="app.openLinkIncidentModal()">
+                <i data-lucide="link" style="width:12px;height:12px;"></i> Link Past Incident
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <!-- Runbook Quick Step Execution -->
+            <div style="margin-bottom:16px;">
+              <div
+                style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;">
+                <span>Active Playbook: Emergency Pool Expansion</span>
+                <span style="color:#34d399;font-family:var(--font-mono);">RB-01</span>
+              </div>
+              <div id="warroom-runbook-container">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Similar Incidents -->
+            <div
+              style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;margin-bottom:8px;">
+              Past Pattern Matches
+            </div>
+            <div id="warroom-history-list">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: ERRORS & EXCEPTION DEEP DIVE -->
+    <!-- ========================================================================= -->
+    <section id="tab-errors" class="view-section">
+      <div class="glass-panel" style="padding:20px;">
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="alert-octagon" style="width:20px;height:20px;color:#ce2a2a;"></i>
+              Aggregated Exceptions & Impact Analyzer
+            </h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">
+              Inspect call stacks, trace IDs, annotate developer hypotheses, and mark primary root cause candidate.
+            </p>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary btn-sm" onclick="app.openNewErrorModal()">
+              <i data-lucide="plus" style="width:14px;height:14px;"></i> Add / Manually Report Exception
+            </button>
+          </div>
+        </div>
+
+        <div id="detailed-errors-container" class="error-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: LIVE LOGS STREAM & FILTER CONSOLE -->
+    <!-- ========================================================================= -->
+    <section id="tab-logs" class="view-section">
+      <div class="glass-panel" style="padding:20px;">
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="terminal" style="width:20px;height:20px;color:#38bdf8;"></i>
+              Full Ingestion Log Explorer & Live Query Engine
+            </h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">
+              Real-time multi-service streaming logs. Pin critical log lines directly to the incident timeline or add
+              annotations.
+            </p>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <label
+              style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;">
+              <input type="checkbox" id="chk-auto-scroll" checked> Auto-Scroll
+            </label>
+            <button class="btn btn-secondary btn-sm" onclick="app.openAddLogModal()">
+              <i data-lucide="plus" style="width:14px;height:14px;"></i> Inject Manual Log Line
+            </button>
+          </div>
+        </div>
+
+        <div class="logs-terminal-container" style="height:600px;">
+          <div class="logs-toolbar">
+            <input type="text" id="detailed-log-search" class="logs-search-input"
+              placeholder="Search logs with regex or keywords (e.g. pool, stripe, latency, error)...">
+
+            <select id="detailed-log-service-filter" class="form-control"
+              style="width:160px;padding:5px 8px;font-size:12px;">
+              <option value="ALL">All Services</option>
+              <option value="payment-gateway">payment-gateway</option>
+              <option value="webhook-consumer">webhook-consumer</option>
+              <option value="ingress-controller">ingress-controller</option>
+              <option value="redis-cluster">redis-cluster</option>
+              <option value="order-db-proxy">order-db-proxy</option>
+            </select>
+
+            <select id="detailed-log-level-filter" class="form-control"
+              style="width:120px;padding:5px 8px;font-size:12px;">
+              <option value="ALL">All Levels</option>
+              <option value="FATAL">FATAL</option>
+              <option value="ERROR">ERROR</option>
+              <option value="WARN">WARN</option>
+              <option value="INFO">INFO</option>
+              <option value="DEBUG">DEBUG</option>
+            </select>
+          </div>
+          <div id="detailed-logs-stream" class="logs-stream-body">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: DEPLOYMENT DETAILS & CI/CD ROLLBACK -->
+    <!-- ========================================================================= -->
+    <section id="tab-deployment" class="view-section">
+      <div class="glass-panel" style="padding:20px;">
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="rocket" style="width:20px;height:20px;color:#a855f7;"></i>
+              Deployment Pipeline & Infrastructure State
+            </h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">
+              Review target versions, helm/k8s overrides, canary routing, and execute emergency rollback.
+            </p>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-secondary btn-sm" onclick="app.openEditDeploymentModal()">
+              <i data-lucide="edit" style="width:14px;height:14px;"></i> Edit Deployment Info
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="app.openRollbackModal()">
+              <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Rollback Deployment
+            </button>
+          </div>
+        </div>
+
+        <div class="deployment-card-grid" id="deployment-metrics-grid">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- 1-Click Rollback Action Box -->
+        <div class="rollback-banner">
+          <div>
+            <div style="font-size:15px;font-weight:700;color:#a93434;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="shield-alert" style="width:18px;height:18px;"></i>
+              Emergency Rollback Target: <span id="rollback-target-label"
+                style="font-family:var(--font-mono);color:rgb(205, 127, 24);">v2.14.7-prod</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;" id="rollback-desc-label">
+              Artifact image pre-cached in container registry. Rollout estimated at ~45 seconds across 12 pods.
+            </div>
+          </div>
+          <button class="btn btn-danger" onclick="app.openRollbackModal()">
+            <i data-lucide="fast-forward" style="width:14px;height:14px;"></i> Execute Rollback Now
+          </button>
+        </div>
+
+        <!-- Detailed Helm / Config Diff -->
+        <div style="margin-top:20px;">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+            <i data-lucide="file-diff" style="width:16px;height:16px;color:#38bdf8;"></i>
+            Config / Helm Values Diff Applied with Current Release
+          </h3>
+          <div id="deployment-config-diff" class="code-diff-preview" style="max-height:240px;">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 5: RECENT CHANGES & SUSPECT COMMIT CORRELATION -->
+    <!-- ========================================================================= -->
+    <section id="tab-changes" class="view-section">
+      <div class="glass-panel" style="padding:20px;">
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="git-pull-request" style="width:20px;height:20px;color:#290d80;"></i>
+              Recent Code Commits, Feature Flags & Infra Changes
+            </h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">
+              Automated suspect scoring correlating commit timestamps with incident error spikes.
+            </p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="app.openNewChangeModal()">
+            <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Commit / Config Change
+          </button>
+        </div>
+
+        <div id="detailed-changes-timeline" style="margin-top:16px;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 6: PREVIOUS INCIDENTS & POSTMORTEM KNOWLEDGE BASE -->
+    <!-- ========================================================================= -->
+    <section id="tab-history" class="view-section">
+      <div class="glass-panel" style="padding:20px;">
+        <div
+          style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 style="font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="archive" style="width:20px;height:20px;color:#fbbf24;"></i>
+              Past Similar Incidents, Postmortems & Executable Runbooks
+            </h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:2px;">
+              Match against historical incident patterns, read what worked previously, and step through mitigation
+              playbooks.
+            </p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="app.openLinkIncidentModal()">
+            <i data-lucide="plus" style="width:14px;height:14px;"></i> Link Past Incident
+          </button>
+        </div>
+
+        <!-- Runbook Section -->
+        <div
+          style="margin-bottom:24px;background:rgba(15,23,42,0.6);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div
+              style="font-size:14px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+              <i data-lucide="play-circle" style="width:16px;height:16px;color:#38bdf8;"></i>
+              Interactive Playbook: <span id="runbook-title-display">Emergency Pool Expansion & Quick Patch</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="app.openAddRunbookStepModal()">
+              <i data-lucide="plus" style="width:12px;height:12px;"></i> Add Runbook Step
+            </button>
+          </div>
+          <div id="detailed-runbook-steps">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Historical Matching Incidents -->
+        <div id="detailed-history-cards">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 7: COLLABORATIVE SCRATCHPAD & TIMELINE -->
+    <!-- ========================================================================= -->
+    <section id="tab-notes" class="view-section">
+      <div style="display:grid;grid-template-columns: 1.2fr 1fr;gap:20px;">
+
+        <!-- Live Scratchpad -->
+        <div class="glass-panel" style="padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="edit" style="width:18px;height:18px;color:#38bdf8;"></i>
+              Live War Room Scratchpad & Action Items
+            </h3>
+            <button class="btn btn-primary btn-sm" onclick="app.saveScratchpad()">
+              <i data-lucide="save" style="width:12px;height:12px;"></i> Save Notes
+            </button>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+            Collaborative markdown editor for active responders, hypotheses, command decisions, and customer
+            communications.
+          </p>
+          <textarea id="scratchpad-input" class="scratchpad-textarea"
+            placeholder="Type incident notes, hypotheses, checklist..."></textarea>
+        </div>
+
+        <!-- Event Timeline -->
+        <div class="glass-panel" style="padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h3 style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+              <i data-lucide="clock" style="width:18px;height:18px;color:#fbbf24;"></i>
+              Incident Event Timeline
+            </h3>
+            <button class="btn btn-secondary btn-sm" onclick="app.openNewTimelineModal()">
+              <i data-lucide="plus" style="width:12px;height:12px;"></i> Add Event
+            </button>
+          </div>
+          <div id="timeline-events-container" class="timeline-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODALS -->
+  <!-- ========================================================================= -->
+
+  <!-- 1. Edit Incident Metadata Modal -->
+  <div id="modal-edit-incident" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Edit Incident Metadata</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-edit-incident">
+          <div class="form-group">
+            <label>Incident Title</label>
+            <input type="text" id="edit-inc-title" class="form-control" required>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Severity</label>
+              <select id="edit-inc-severity" class="form-control">
+                <option value="P1">P1 - Critical Outage</option>
+                <option value="P2">P2 - Major Degradation</option>
+                <option value="P3">P3 - Minor Issue</option>
+                <option value="P4">P4 - Low / Cosmetic</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="edit-inc-status" class="form-control">
+                <option value="Investigating">Investigating</option>
+                <option value="Identified">Identified</option>
+                <option value="Monitoring">Monitoring</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Incident Commander</label>
+              <input type="text" id="edit-inc-commander" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label>Primary Service</label>
+              <input type="text" id="edit-inc-service" class="form-control" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Executive Summary / Root Cause</label>
+            <textarea id="edit-inc-summary" class="form-control" rows="3"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Impacted Users</label>
+              <input type="number" id="edit-inc-users" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Estimated Burn Rate / hr</label>
+              <input type="text" id="edit-inc-financial" class="form-control">
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.saveIncidentMetadata()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Create New Incident Modal -->
+  <div id="modal-create-incident" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Declare New Incident</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-create-incident">
+          <div class="form-group">
+            <label>Incident ID</label>
+            <input type="text" id="new-inc-id" class="form-control" value="INC-4822" required>
+          </div>
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="new-inc-title" class="form-control"
+              placeholder="e.g. Database Connection Pool Exhaustion on Orders Service" required>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Severity</label>
+              <select id="new-inc-severity" class="form-control">
+                <option value="P1">P1 - Critical Outage</option>
+                <option value="P2">P2 - Major Degradation</option>
+                <option value="P3">P3 - Minor</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Primary Service</label>
+              <input type="text" id="new-inc-service" class="form-control" value="checkout-api" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Commander</label>
+            <input type="text" id="new-inc-commander" class="form-control" value="Staff SRE On-Call" required>
+          </div>
+          <div class="form-group">
+            <label>Initial Summary</label>
+            <textarea id="new-inc-summary" class="form-control"
+              placeholder="Brief explanation of current symptoms..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-danger" onclick="app.createIncidentSubmit()">Declare Incident</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Rollback Confirmation Modal -->
+  <div id="modal-rollback" class="modal-overlay">
+    <div class="modal-content" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;color:#f87171;display:flex;align-items:center;gap:8px;">
+          <i data-lucide="alert-triangle" style="width:18px;height:18px;"></i>
+          Confirm Production Rollback
+        </h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+          You are about to roll back the current release <strong id="modal-rb-current-ver"
+            style="color:white;font-family:var(--font-mono);">v2.14.8-hotfix-3</strong> to the previous stable release
+          <strong id="modal-rb-target-ver" style="color:#34d399;font-family:var(--font-mono);">v2.14.7-prod</strong>
+          across all cluster pods.
+        </p>
+        <div
+          style="background:#080c14;border:1px solid rgba(255,255,255,0.06);border-radius:var(--radius-sm);padding:12px;font-family:var(--font-mono);font-size:11px;color:#cbd5e1;">
+          <div>kubectl rollout undo deployment/payment-gateway -n ecommerce-core</div>
+          <div style="color:#34d399;margin-top:4px;">✓ Pre-flight checks passed (Target image SHA verified)</div>
+          <div style="color:#38bdf8;">✓ Zero-downtime rolling restart policy: maxSurge=25%, maxUnavailable=0</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-danger" onclick="app.executeRollbackConfirmed()">
+          <i data-lucide="rotate-ccw" style="width:14px;height:14px;"></i> Proceed with Rollback
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Add Manual Error Modal -->
+  <div id="modal-add-error" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Add / Annotate Exception</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-error">
+          <div class="form-group">
+            <label>Exception Name / Class</label>
+            <input type="text" id="new-err-name" class="form-control"
+              placeholder="e.g. RedisConnectionPoolTimeoutException" required>
+          </div>
+          <div class="form-group">
+            <label>Error Message</label>
+            <input type="text" id="new-err-msg" class="form-control"
+              placeholder="e.g. Timeout acquiring connection after 5000ms" required>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Service</label>
+              <input type="text" id="new-err-service" class="form-control" value="payment-gateway" required>
+            </div>
+            <div class="form-group">
+              <label>Impacted Endpoint</label>
+              <input type="text" id="new-err-endpoint" class="form-control" placeholder="POST /api/v2/checkout/process">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Stack Trace</label>
+            <textarea id="new-err-stack" class="form-control" rows="4"
+              placeholder="Paste full stack trace here..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Developer Hypothesis / Note</label>
+            <input type="text" id="new-err-note" class="form-control"
+              placeholder="e.g. Caused by reduced pool size in helm values">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.addErrorSubmit()">Add Exception</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Add Manual Log Modal -->
+  <div id="modal-add-log" class="modal-overlay">
+    <div class="modal-content" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Inject Manual Log Line</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-log">
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;">
+            <div class="form-group">
+              <label>Level</label>
+              <select id="new-log-level" class="form-control">
+                <option value="ERROR">ERROR</option>
+                <option value="FATAL">FATAL</option>
+                <option value="WARN">WARN</option>
+                <option value="INFO">INFO</option>
+                <option value="DEBUG">DEBUG</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Service</label>
+              <input type="text" id="new-log-service" class="form-control" value="payment-gateway" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Log Message</label>
+            <textarea id="new-log-msg" class="form-control" rows="3" placeholder="Log output message..."
+              required></textarea>
+          </div>
+          <div class="form-group">
+            <label>Developer Annotation (Optional)</label>
+            <input type="text" id="new-log-comment" class="form-control" placeholder="Why this log is important...">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.addLogSubmit()">Inject Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Add Timeline Event Modal -->
+  <div id="modal-add-timeline" class="modal-overlay">
+    <div class="modal-content" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Add Timeline Log Event</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-timeline">
+          <div class="form-group">
+            <label>Event Description</label>
+            <input type="text" id="new-timeline-text" class="form-control"
+              placeholder="e.g. Scaled Redis pool size to 80; latency dropping" required>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Author / Responder</label>
+              <input type="text" id="new-timeline-author" class="form-control" value="Nivetha" required>
+            </div>
+            <div class="form-group">
+              <label>Event Type</label>
+              <select id="new-timeline-type" class="form-control">
+                <option value="manual">Manual Action</option>
+                <option value="alert">Alert Triggered</option>
+                <option value="system">System Deploy / Auto</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.addTimelineSubmit()">Log Event</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Postmortem Export Modal -->
+  <div id="modal-postmortem" class="modal-overlay">
+    <div class="modal-content" style="max-width:780px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">
+          <i data-lucide="file-text" style="width:18px;height:18px;color:#38bdf8;"></i>
+          Incident Postmortem & Summary Report
+        </h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+          <span style="font-size:12px;color:var(--text-muted);">Markdown Preview (Ready to export to Jira, Confluence,
+            or GitHub Discussions)</span>
+          <button class="btn btn-secondary btn-sm" onclick="app.copyPostmortemToClipboard()">
+            <i data-lucide="copy" style="width:12px;height:12px;"></i> Copy Markdown
+          </button>
+        </div>
+        <textarea id="postmortem-preview-text" class="form-control"
+          style="height:320px;font-family:var(--font-mono);font-size:12px;line-height:1.6;" readonly></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Close</button>
+        <button class="btn btn-primary" onclick="window.print()">
+          <i data-lucide="printer" style="width:14px;height:14px;"></i> Print / PDF Export
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Add Recent Change / Commit Modal -->
+  <div id="modal-add-change" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Record Recent Code / Config Change</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-change">
+          <div class="form-group">
+            <label>Change Title / PR Name</label>
+            <input type="text" id="new-chg-title" class="form-control"
+              placeholder="e.g. fix(db): reduce connection pool idle timeout" required>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Type</label>
+              <select id="new-chg-type" class="form-control">
+                <option value="Git Commit">Git Commit</option>
+                <option value="Feature Flag">Feature Flag</option>
+                <option value="Terraform / Infra">Terraform / Infra</option>
+                <option value="Kubernetes ConfigMap">Kubernetes ConfigMap</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Author</label>
+              <input type="text" id="new-chg-author" class="form-control" value="dev-team@novintix.io" required>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Commit SHA / Flag Key</label>
+              <input type="text" id="new-chg-sha" class="form-control" placeholder="a1b2c3d4">
+            </div>
+            <div class="form-group">
+              <label>Suspect Probability Score (%)</label>
+              <input type="number" id="new-chg-score" class="form-control" value="85" min="0" max="100">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Unified Diff / Snippet</label>
+            <textarea id="new-chg-diff" class="form-control" rows="4"
+              placeholder="+ pool_size = 10\n- pool_size = 50"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.addChangeSubmit()">Save Change</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Link Past Incident Modal -->
+  <div id="modal-link-incident" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Link Historical / Similar Incident</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-link-incident">
+          <div class="form-group">
+            <label>Historical Incident ID</label>
+            <input type="text" id="new-past-id" class="form-control" placeholder="e.g. INC-3190" required>
+          </div>
+          <div class="form-group">
+            <label>Incident Title</label>
+            <input type="text" id="new-past-title" class="form-control"
+              placeholder="e.g. Stripe Webhook Timeout During Black Friday" required>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Similarity Match %</label>
+              <input type="text" id="new-past-similarity" class="form-control" value="88% Match">
+            </div>
+            <div class="form-group">
+              <label>Resolution Time</label>
+              <input type="text" id="new-past-duration" class="form-control" value="30 mins">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Past Root Cause</label>
+            <textarea id="new-past-cause" class="form-control" rows="2"
+              placeholder="Explain what caused the past incident..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Past Key Remediation</label>
+            <input type="text" id="new-past-remediation" class="form-control"
+              placeholder="What fixed it? (e.g. Scaled workers to 15)">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.linkIncidentSubmit()">Link Incident</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. Add Runbook Step Modal -->
+  <div id="modal-add-runbook-step" class="modal-overlay">
+    <div class="modal-content" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Add Playbook / Runbook Step</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-add-step">
+          <div class="form-group">
+            <label>Step Title / Action</label>
+            <input type="text" id="new-step-title" class="form-control"
+              placeholder="e.g. Drain and restart stale Redis consumer pods" required>
+          </div>
+          <div class="form-group">
+            <label>CLI / Shell Command (Optional)</label>
+            <input type="text" id="new-step-cmd" class="form-control"
+              placeholder="kubectl rollout restart deployment/redis-consumer">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.addRunbookStepSubmit()">Add Step</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11. Edit Deployment Metadata Modal -->
+  <div id="modal-edit-deployment" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="font-size:16px;font-weight:700;">Edit Deployment & Pipeline Details</h3>
+        <button class="btn btn-secondary btn-icon-only" onclick="app.closeModals()"><i data-lucide="x"
+            style="width:16px;height:16px;"></i></button>
+      </div>
+      <div class="modal-body">
+        <form id="form-edit-deployment">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Active Release Tag</label>
+              <input type="text" id="edit-dep-active" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label>Target Rollback Tag</label>
+              <input type="text" id="edit-dep-rollback" class="form-control" required>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label>Deployed By</label>
+              <input type="text" id="edit-dep-by" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Pipeline ID</label>
+              <input type="text" id="edit-dep-pipe" class="form-control">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Config / Helm Diff Summary</label>
+            <textarea id="edit-dep-diff" class="form-control" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModals()">Cancel</button>
+        <button class="btn btn-primary" onclick="app.saveDeploymentSubmit()">Save Deployment Info</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
