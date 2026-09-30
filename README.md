@@ -1,6 +1,6 @@
-# SentinelOps - Production Incident Live Triage & War Room Dashboard
+# Novinax - Production Incident Live Triage & War Room Dashboard
 
-**SentinelOps** is a unified, real-time developer war room and incident triage dashboard. It aggregates the 5 critical dimensions of production incident debugging into a single real-time glassmorphic interface with bidirectional live updates and manual editing capabilities.
+**Novinax** is a unified, real-time developer war room and incident triage dashboard. It aggregates the 5 critical dimensions of production incident debugging into a single real-time glassmorphic interface with bidirectional live updates and manual editing capabilities.
 
 ---
 
