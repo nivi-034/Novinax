@@ -2,7 +2,7 @@
 
 ## Project Name: Novinax — Production Incident Live Triage & War Room Dashboard
 **Document Version:** 1.0.0  
-**Author:** Nivetha (Staff SRE / Product Owner)  
+**Author:** Nivetha (Staff SRE)  
 **Status:** Approved / Live  
 **Repository:** [https://github.com/nivi-034/Novinax](https://github.com/nivi-034/Novinax)  
 
